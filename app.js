@@ -1,0 +1,756 @@
+const storageKey = 'workout-tracker-data-v1';
+const templateStorageKey = 'workout-tracker-templates-v1';
+const workoutForm = document.getElementById('workoutForm');
+const exerciseList = document.getElementById('exerciseList');
+const addExerciseBtn = document.getElementById('addExerciseBtn');
+const summaryGrid = document.getElementById('summaryGrid');
+const historyContainer = document.getElementById('history');
+const exerciseTemplate = document.getElementById('exerciseRowTemplate');
+const setTemplate = document.getElementById('setRowTemplate');
+const toast = document.getElementById('toast');
+const installBtn = document.getElementById('installBtn');
+const templateSelect = document.getElementById('templateSelect');
+const applyTemplateBtn = document.getElementById('applyTemplateBtn');
+const saveTemplateBtn = document.getElementById('saveTemplateBtn');
+const deleteTemplateBtn = document.getElementById('deleteTemplateBtn');
+
+let workouts = loadWorkouts();
+let templates = loadTemplates();
+let editingWorkoutId = null;
+let deferredPrompt;
+
+init();
+
+function init() {
+  addExerciseRow();
+  setDefaultDate();
+  renderSummary();
+  renderHistory();
+  renderTemplateOptions();
+  setupEventListeners();
+  maybeApplyDarkTheme();
+}
+
+function setupEventListeners() {
+  addExerciseBtn.addEventListener('click', () => {
+    const row = addExerciseRow();
+    const input = row.querySelector('input[name="exercise"]');
+    if (input) {
+      input.focus();
+    }
+  });
+
+  workoutForm.addEventListener('submit', (event) => {
+    event.preventDefault();
+    if (!workoutForm.reportValidity()) {
+      return;
+    }
+
+    const workoutData = collectFormData();
+    if (!workoutData.exercises.length) {
+      showToast('Add at least one exercise.');
+      return;
+    }
+
+    if (editingWorkoutId) {
+      workouts = workouts.map((workout) =>
+        workout.id === editingWorkoutId ? { ...workout, ...workoutData } : workout
+      );
+      showToast('Workout updated.');
+    } else {
+      workouts.unshift({
+        ...workoutData,
+        id: generateId(),
+        createdAt: new Date().toISOString(),
+      });
+      showToast('Workout saved.');
+    }
+
+    saveWorkouts();
+    renderSummary();
+    renderHistory();
+    resetForm();
+  });
+
+  workoutForm.addEventListener('reset', () => {
+    setTimeout(resetForm, 0);
+  });
+
+  exerciseList.addEventListener('click', (event) => {
+    const removeExerciseButton = event.target.closest('.remove-exercise');
+    if (removeExerciseButton) {
+      const row = removeExerciseButton.closest('.exercise-row');
+      removeExerciseRow(row);
+      return;
+    }
+
+    const addSetButton = event.target.closest('.add-set');
+    if (addSetButton) {
+      const row = addSetButton.closest('.exercise-row');
+      addSetRow(row, {}, { focus: true });
+      return;
+    }
+
+    const removeSetButton = event.target.closest('.remove-set');
+    if (removeSetButton) {
+      const row = removeSetButton.closest('.exercise-row');
+      const setRow = removeSetButton.closest('.set-row');
+      removeSetRow(row, setRow);
+    }
+  });
+
+  templateSelect.addEventListener('change', updateTemplateControlState);
+
+  applyTemplateBtn.addEventListener('click', () => {
+    const templateId = templateSelect.value;
+    if (!templateId) {
+      showToast('Choose a template to apply.');
+      return;
+    }
+    const template = templates.find((item) => item.id === templateId);
+    if (!template) {
+      showToast('Template not found.');
+      renderTemplateOptions();
+      return;
+    }
+    if (!confirm(`Apply template "${template.name}"? This will replace the current exercises.`)) {
+      return;
+    }
+    applyTemplate(template);
+  });
+
+  saveTemplateBtn.addEventListener('click', () => {
+    if (!workoutForm.reportValidity()) {
+      showToast('Complete the workout details before saving the template.');
+      return;
+    }
+    const { focus, exercises } = collectFormData();
+    if (!exercises.length) {
+      showToast('Add at least one exercise to save as a template.');
+      return;
+    }
+    const rawName = prompt('Name this template:');
+    const name = rawName?.trim();
+    if (!name) {
+      showToast('Template name is required.');
+      return;
+    }
+    const template = {
+      id: generateId(),
+      name,
+      focus,
+      exercises,
+    };
+    templates.push(template);
+    saveTemplates();
+    renderTemplateOptions(template.id);
+    showToast('Template saved.');
+  });
+
+  deleteTemplateBtn.addEventListener('click', () => {
+    const templateId = templateSelect.value;
+    if (!templateId) {
+      showToast('Choose a template to delete.');
+      return;
+    }
+    const template = templates.find((item) => item.id === templateId);
+    if (!template) {
+      showToast('Template not found.');
+      renderTemplateOptions();
+      return;
+    }
+    if (!confirm(`Delete template "${template.name}"? This cannot be undone.`)) {
+      return;
+    }
+    templates = templates.filter((item) => item.id !== templateId);
+    saveTemplates();
+    renderTemplateOptions();
+    showToast('Template deleted.');
+  });
+
+  window.addEventListener('beforeinstallprompt', (event) => {
+    event.preventDefault();
+    deferredPrompt = event;
+    installBtn.hidden = false;
+  });
+
+  installBtn.addEventListener('click', async () => {
+    if (!deferredPrompt) {
+      return;
+    }
+    deferredPrompt.prompt();
+    const { outcome } = await deferredPrompt.userChoice;
+    if (outcome === 'accepted') {
+      showToast('Installing Workout Tracker...');
+    }
+    deferredPrompt = null;
+    installBtn.hidden = true;
+  });
+}
+
+function addExerciseRow(values = {}) {
+  const row = exerciseTemplate.content.firstElementChild.cloneNode(true);
+  const nameInput = row.querySelector('input[name="exercise"]');
+  nameInput.value = values.exercise || '';
+  const sets = Array.isArray(values.sets) && values.sets.length ? values.sets : [{}];
+  sets.forEach((setValues) => {
+    addSetRow(row, setValues || {}, { focus: false });
+  });
+  exerciseList.appendChild(row);
+  updateSetLabels(row);
+  return row;
+}
+
+function removeExerciseRow(row) {
+  const allRows = Array.from(exerciseList.querySelectorAll('.exercise-row'));
+  if (allRows.length <= 1) {
+    showToast('You need at least one exercise.');
+    return;
+  }
+  row.remove();
+}
+
+function collectFormData() {
+  const formData = new FormData(workoutForm);
+  const date = formData.get('date');
+  const focus = formData.get('focus')?.trim();
+  const notes = formData.get('notes')?.trim();
+  const exercises = Array.from(exerciseList.querySelectorAll('.exercise-row'))
+    .map((row) => {
+      const exerciseName = row.querySelector('input[name="exercise"]').value.trim();
+      const sets = getSetRows(row).map((setRow) => {
+        const repsInput = setRow.querySelector('input[name="reps"]');
+        const weightInput = setRow.querySelector('input[name="weight"]');
+        const repsValue = Number(repsInput.value);
+        const weightRaw = weightInput.value;
+        const weightValue =
+          weightRaw === '' || weightRaw === null || weightRaw === undefined
+            ? null
+            : Number(weightRaw);
+        return {
+          reps: Number.isNaN(repsValue) ? 0 : repsValue,
+          weight: weightValue === null || Number.isNaN(weightValue) ? null : weightValue,
+        };
+      });
+      return {
+        exercise: exerciseName,
+        sets,
+      };
+    })
+    .filter(({ exercise, sets }) => exercise.length && sets.length);
+
+  return {
+    date,
+    focus,
+    notes,
+    exercises,
+  };
+}
+
+function addSetRow(exerciseRow, values = {}, options = {}) {
+  const setList = exerciseRow.querySelector('.set-list');
+  if (!setList) {
+    return null;
+  }
+  const setRow = setTemplate.content.firstElementChild.cloneNode(true);
+  const repsInput = setRow.querySelector('input[name="reps"]');
+  const weightInput = setRow.querySelector('input[name="weight"]');
+
+  setNumberInputValue(repsInput, values.reps);
+  setNumberInputValue(weightInput, values.weight);
+
+  setList.appendChild(setRow);
+  updateSetLabels(exerciseRow);
+
+  if (options.focus) {
+    setTimeout(() => repsInput.focus(), 0);
+  }
+
+  return setRow;
+}
+
+function removeSetRow(exerciseRow, setRow) {
+  if (!setRow) {
+    return;
+  }
+  const rows = getSetRows(exerciseRow);
+  if (rows.length <= 1) {
+    showToast('Keep at least one set.');
+    return;
+  }
+  setRow.remove();
+  updateSetLabels(exerciseRow);
+}
+
+function getSetRows(exerciseRow) {
+  return Array.from(exerciseRow.querySelectorAll('.set-row'));
+}
+
+function updateSetLabels(exerciseRow) {
+  getSetRows(exerciseRow).forEach((row, index) => {
+    const label = row.querySelector('.set-label');
+    if (label) {
+      label.textContent = `Set ${index + 1}`;
+    }
+  });
+}
+
+function setNumberInputValue(input, value) {
+  if (!input) {
+    return;
+  }
+  if (value === null || value === undefined || value === '') {
+    input.value = '';
+    return;
+  }
+  const numeric = Number(value);
+  if (Number.isNaN(numeric)) {
+    input.value = '';
+    return;
+  }
+  input.value = numeric;
+}
+
+function renderSummary() {
+  summaryGrid.innerHTML = '';
+
+  if (!workouts.length) {
+    summaryGrid.innerHTML = `
+      <article class="summary-card" role="listitem">
+        <span>Getting started</span>
+        <strong>Log your first workout</strong>
+      </article>
+    `;
+    return;
+  }
+
+  const sortedWorkouts = workouts
+    .slice()
+    .sort((a, b) => new Date(b.date) - new Date(a.date));
+
+  const totalWorkouts = sortedWorkouts.length;
+  const weekAgo = startOfDay(new Date(Date.now() - 6 * 24 * 60 * 60 * 1000));
+  const workoutsThisWeek = sortedWorkouts.filter((workout) => new Date(workout.date) >= weekAgo).length;
+
+  const cards = [
+    {
+      label: 'Total workouts',
+      value: totalWorkouts.toLocaleString(),
+    },
+    {
+      label: 'Sessions this week',
+      value: workoutsThisWeek.toLocaleString(),
+    },
+    {
+      label: 'Sets logged',
+      value: sortedWorkouts
+        .reduce(
+          (total, workout) =>
+            total + workout.exercises.reduce((sum, exercise) => sum + (exercise.sets?.length || 0), 0),
+          0
+        )
+        .toLocaleString(),
+    },
+  ];
+
+  cards.forEach((card) => {
+    const article = document.createElement('article');
+    article.className = 'summary-card';
+    article.setAttribute('role', 'listitem');
+    article.innerHTML = `<span>${card.label}</span><strong>${card.value}</strong>`;
+    summaryGrid.appendChild(article);
+  });
+}
+
+function renderHistory() {
+  historyContainer.innerHTML = '';
+
+  if (!workouts.length) {
+    const emptyState = document.createElement('div');
+    emptyState.className = 'history-card';
+    emptyState.innerHTML = `
+      <header>
+        <h3>No workouts yet</h3>
+      </header>
+      <p class="muted">Your logged workouts will show up here. Add one above to build your streak.</p>
+    `;
+    historyContainer.appendChild(emptyState);
+    return;
+  }
+
+  workouts
+    .slice()
+    .sort((a, b) => new Date(b.date) - new Date(a.date))
+    .forEach((workout) => {
+      const article = document.createElement('article');
+      article.className = 'history-card';
+      article.tabIndex = 0;
+
+      const header = document.createElement('header');
+      const title = document.createElement('h3');
+      title.textContent = workout.focus || 'Training session';
+      header.appendChild(title);
+
+      const time = document.createElement('time');
+      time.dateTime = workout.date;
+      time.textContent = new Intl.DateTimeFormat(undefined, {
+        weekday: 'short',
+        month: 'short',
+        day: 'numeric',
+      }).format(new Date(workout.date));
+      header.appendChild(time);
+
+      article.appendChild(header);
+
+      if (workout.focus) {
+        const tag = document.createElement('span');
+        tag.className = 'tag';
+        tag.textContent = workout.focus;
+        article.appendChild(tag);
+      }
+
+      const list = document.createElement('ul');
+      list.className = 'exercise-summary';
+      workout.exercises.forEach((exercise) => {
+        const item = document.createElement('li');
+
+        const name = document.createElement('strong');
+        name.textContent = exercise.exercise || 'Exercise';
+        item.appendChild(name);
+
+        const setDetails = document.createElement('div');
+        setDetails.className = 'set-detail-list';
+
+        exercise.sets.forEach((set, index) => {
+          const detail = document.createElement('div');
+          detail.className = 'set-detail';
+
+          const label = document.createElement('span');
+          label.className = 'set-detail-label';
+          label.textContent = `Set ${index + 1}`;
+
+          const value = document.createElement('span');
+          value.className = 'set-detail-value';
+          const repsNumber = Number(set.reps);
+          const repsText = Number.isNaN(repsNumber) ? '' : `${repsNumber} reps`;
+          const weightNumber =
+            set.weight === null || set.weight === undefined ? NaN : Number(set.weight);
+          const weightText = Number.isNaN(weightNumber)
+            ? ''
+            : ` @ ${weightNumber.toLocaleString(undefined, { maximumFractionDigits: 2 })} kg`;
+          value.textContent = `${repsText}${weightText}`.trim();
+
+          detail.append(label, value);
+          setDetails.appendChild(detail);
+        });
+
+        const exerciseVolume = calculateVolume([exercise]);
+        if (exerciseVolume) {
+          const total = document.createElement('div');
+          total.className = 'set-total';
+          total.textContent = `Volume: ${exerciseVolume.toLocaleString(undefined, {
+            maximumFractionDigits: 0,
+          })} kg reps`;
+          setDetails.appendChild(total);
+        }
+
+        item.appendChild(setDetails);
+        list.appendChild(item);
+      });
+      article.appendChild(list);
+
+      if (workout.notes) {
+        const details = document.createElement('details');
+        const summary = document.createElement('summary');
+        summary.textContent = 'Notes';
+        const notes = document.createElement('p');
+        notes.textContent = workout.notes;
+        details.append(summary, notes);
+        article.appendChild(details);
+      }
+
+      const footer = document.createElement('div');
+      footer.className = 'history-actions';
+      const editBtn = document.createElement('button');
+      editBtn.type = 'button';
+      editBtn.className = 'secondary small';
+      editBtn.textContent = 'Edit';
+      editBtn.addEventListener('click', () => startEditing(workout.id));
+
+      const deleteBtn = document.createElement('button');
+      deleteBtn.type = 'button';
+      deleteBtn.className = 'ghost small';
+      deleteBtn.textContent = 'Delete';
+      deleteBtn.addEventListener('click', () => deleteWorkout(workout.id));
+
+      footer.append(editBtn, deleteBtn);
+      article.appendChild(footer);
+
+      historyContainer.appendChild(article);
+    });
+}
+
+function applyTemplate(template) {
+  templateSelect.value = template.id;
+  workoutForm.elements.focus.value = template.focus || '';
+  exerciseList.innerHTML = '';
+  if (template.exercises.length) {
+    template.exercises.forEach((exercise) => addExerciseRow(exercise));
+  } else {
+    addExerciseRow();
+  }
+  updateTemplateControlState();
+  showToast('Template applied.');
+}
+
+function renderTemplateOptions(selectedId) {
+  const desiredValue = typeof selectedId === 'string' ? selectedId : templateSelect.value;
+  templateSelect.innerHTML = '';
+  const placeholder = document.createElement('option');
+  placeholder.value = '';
+  placeholder.textContent = 'Choose a template...';
+  templateSelect.appendChild(placeholder);
+
+  templates.forEach((template) => {
+    const option = document.createElement('option');
+    option.value = template.id;
+    option.textContent = template.name;
+    templateSelect.appendChild(option);
+  });
+
+  if (desiredValue && templates.some((template) => template.id === desiredValue)) {
+    templateSelect.value = desiredValue;
+  } else {
+    templateSelect.value = '';
+  }
+
+  updateTemplateControlState();
+}
+
+function updateTemplateControlState() {
+  const hasTemplates = templates.length > 0;
+  templateSelect.disabled = !hasTemplates;
+  applyTemplateBtn.disabled = !hasTemplates || !templateSelect.value;
+  deleteTemplateBtn.disabled = !templateSelect.value;
+}
+
+function startEditing(id) {
+  const workout = workouts.find((item) => item.id === id);
+  if (!workout) return;
+
+  editingWorkoutId = workout.id;
+  workoutForm.querySelector('.primary').textContent = 'Update workout';
+  workoutForm.scrollIntoView({ behavior: 'smooth', block: 'start' });
+
+  workoutForm.elements.date.value = workout.date;
+  workoutForm.elements.focus.value = workout.focus || '';
+  workoutForm.elements.notes.value = workout.notes || '';
+
+  exerciseList.innerHTML = '';
+  workout.exercises.forEach((exercise) => addExerciseRow(exercise));
+  showToast('Editing workout. Save to update.');
+}
+
+function deleteWorkout(id) {
+  const workout = workouts.find((item) => item.id === id);
+  if (!workout) return;
+  if (!confirm('Delete this workout? This cannot be undone.')) {
+    return;
+  }
+  workouts = workouts.filter((item) => item.id !== id);
+  saveWorkouts();
+  renderSummary();
+  renderHistory();
+  if (editingWorkoutId === id) {
+    resetForm();
+  }
+  showToast('Workout deleted.');
+}
+
+function resetForm() {
+  editingWorkoutId = null;
+  workoutForm.reset();
+  workoutForm.querySelector('.primary').textContent = 'Save workout';
+  exerciseList.innerHTML = '';
+  addExerciseRow();
+  setDefaultDate();
+}
+
+function setDefaultDate() {
+  const today = new Date().toISOString().split('T')[0];
+  workoutForm.elements.date.value = today;
+}
+
+function calculateVolume(exercises) {
+  return exercises.reduce((total, exercise) => {
+    const sets = Array.isArray(exercise.sets) ? exercise.sets : [];
+    const exerciseTotal = sets.reduce((sum, set) => {
+      const reps = Number(set?.reps);
+      const weight = set?.weight === null || set?.weight === undefined ? 0 : Number(set.weight);
+      const safeReps = Number.isNaN(reps) ? 0 : reps;
+      const safeWeight = Number.isNaN(weight) ? 0 : weight;
+      return sum + safeReps * safeWeight;
+    }, 0);
+    return total + exerciseTotal;
+  }, 0);
+}
+
+function startOfDay(date) {
+  const copy = new Date(date);
+  copy.setHours(0, 0, 0, 0);
+  return copy;
+}
+
+function loadWorkouts() {
+  try {
+    const raw = localStorage.getItem(storageKey);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) {
+      return [];
+    }
+    return parsed
+      .map(normalizeWorkout)
+      .filter(Boolean);
+  } catch (error) {
+    console.error('Failed to parse stored workouts', error);
+    return [];
+  }
+}
+
+function saveWorkouts() {
+  try {
+    localStorage.setItem(storageKey, JSON.stringify(workouts));
+  } catch (error) {
+    console.error('Failed to save workouts', error);
+    showToast('Unable to save. Check storage availability.');
+  }
+}
+
+function loadTemplates() {
+  try {
+    const raw = localStorage.getItem(templateStorageKey);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) {
+      return [];
+    }
+    return parsed
+      .map((template) => {
+        if (!template || typeof template !== 'object') {
+          return null;
+        }
+        const normalizedExercises = Array.isArray(template.exercises)
+          ? template.exercises.map(normalizeExercise).filter(Boolean)
+          : [];
+        const name = typeof template.name === 'string' ? template.name.trim() : '';
+        return {
+          id: template.id || generateId(),
+          name: name || 'Template',
+          focus: typeof template.focus === 'string' ? template.focus : '',
+          exercises: normalizedExercises,
+        };
+      })
+      .filter(Boolean);
+  } catch (error) {
+    console.error('Failed to parse stored templates', error);
+    return [];
+  }
+}
+
+function saveTemplates() {
+  try {
+    localStorage.setItem(templateStorageKey, JSON.stringify(templates));
+  } catch (error) {
+    console.error('Failed to save templates', error);
+    showToast('Unable to save template. Check storage availability.');
+  }
+}
+
+function normalizeWorkout(workout) {
+  if (!workout || typeof workout !== 'object') {
+    return null;
+  }
+  const exercises = Array.isArray(workout.exercises)
+    ? workout.exercises.map(normalizeExercise).filter(Boolean)
+    : [];
+  return {
+    ...workout,
+    exercises,
+  };
+}
+
+function normalizeExercise(exercise) {
+  if (!exercise || typeof exercise !== 'object') {
+    return null;
+  }
+
+  const name = typeof exercise.exercise === 'string' ? exercise.exercise : '';
+
+  if (Array.isArray(exercise.sets)) {
+    const sets = exercise.sets
+      .map((set) => {
+        const repsValue = Number(set?.reps);
+        const weightRaw = set?.weight;
+        const weightValue =
+          weightRaw === null || weightRaw === undefined || weightRaw === ''
+            ? null
+            : Number(weightRaw);
+        return {
+          reps: Number.isNaN(repsValue) || repsValue < 1 ? 1 : Math.round(repsValue),
+          weight: weightValue === null || Number.isNaN(weightValue) ? null : weightValue,
+        };
+      })
+      .filter((set) => set.reps || set.weight !== null);
+
+    return {
+      exercise: name,
+      sets: sets.length ? sets : [{ reps: 1, weight: null }],
+    };
+  }
+
+  const setsCount = Number(exercise.sets);
+  const repsValue = Number(exercise.reps);
+  const weightRaw = exercise.weight;
+  const weightValue =
+    weightRaw === null || weightRaw === undefined || weightRaw === '' ? null : Number(weightRaw);
+  const safeWeight = weightValue === null || Number.isNaN(weightValue) ? null : weightValue;
+  const safeReps = Number.isNaN(repsValue) || repsValue < 1 ? 1 : Math.round(repsValue);
+
+  let sets = [];
+  if (!Number.isNaN(setsCount) && setsCount > 0) {
+    for (let index = 0; index < setsCount; index += 1) {
+      sets.push({ reps: safeReps, weight: safeWeight });
+    }
+  } else if (!Number.isNaN(repsValue) || safeWeight !== null) {
+    sets = [{ reps: safeReps, weight: safeWeight }];
+  } else {
+    sets = [{ reps: 1, weight: null }];
+  }
+
+  return {
+    exercise: name,
+    sets,
+  };
+}
+
+function showToast(message) {
+  toast.textContent = message;
+  toast.classList.add('show');
+  clearTimeout(showToast.timeout);
+  showToast.timeout = setTimeout(() => toast.classList.remove('show'), 2600);
+}
+
+function maybeApplyDarkTheme() {
+  const dark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+  if (dark) {
+    document.body.classList.add('dark-theme');
+  }
+}
+
+function generateId() {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID();
+  }
+  return `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+}

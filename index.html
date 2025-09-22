@@ -26,14 +26,25 @@
   </header>
 
   <main>
-    <section class="summary" aria-labelledby="summary-heading">
+    <section
+      class="view summary"
+      data-view="summary"
+      id="summarySection"
+      aria-labelledby="summary-heading"
+      hidden
+    >
       <h2 id="summary-heading">Progress snapshot</h2>
       <div class="summary-grid" id="summaryGrid" role="list">
         <!-- Summary cards injected by script -->
       </div>
     </section>
 
-    <section class="card" aria-labelledby="workout-form-heading">
+    <section
+      class="view card"
+      data-view="log"
+      id="logSection"
+      aria-labelledby="workout-form-heading"
+    >
       <div class="card-header">
         <h2 id="workout-form-heading">Log a workout</h2>
         <p>Track every set inline and reuse templates to speed up future sessions.</p>
@@ -72,8 +83,13 @@
         </div>
       </form>
     </section>
-
-    <section class="card" aria-labelledby="history-heading">
+    <section
+      class="view card"
+      data-view="history"
+      id="historySection"
+      aria-labelledby="history-heading"
+      hidden
+    >
       <div class="card-header">
         <h2 id="history-heading">Workout history</h2>
         <p class="muted">Tap a workout to see details, repeat a session, or turn it into a template.</p>
@@ -101,6 +117,44 @@
     </section>
   </main>
 
+  <nav class="tab-bar" role="tablist" aria-label="Primary sections">
+    <button
+      type="button"
+      class="tab-button"
+      role="tab"
+      aria-selected="false"
+      tabindex="-1"
+      data-view-target="summary"
+      aria-controls="summarySection"
+    >
+      <span class="tab-icon" aria-hidden="true">📈</span>
+      <span class="tab-label">Progress</span>
+    </button>
+    <button
+      type="button"
+      class="tab-button active"
+      role="tab"
+      aria-selected="true"
+      tabindex="0"
+      data-view-target="log"
+      aria-controls="logSection"
+    >
+      <span class="tab-icon" aria-hidden="true">📝</span>
+      <span class="tab-label">Log</span>
+    </button>
+    <button
+      type="button"
+      class="tab-button"
+      role="tab"
+      aria-selected="false"
+      tabindex="-1"
+      data-view-target="history"
+      aria-controls="historySection"
+    >
+      <span class="tab-icon" aria-hidden="true">📚</span>
+      <span class="tab-label">History</span>
+    </button>
+  </nav>
   <template id="exerciseRowTemplate">
     <div class="exercise-row">
       <div class="exercise-header">

@@ -1,5 +1,7 @@
 const storageKey = 'workout-tracker-data-v1';
 const templateStorageKey = 'workout-tracker-templates-v1';
+const viewStorageKey = 'workout-tracker-active-view';
+const defaultView = 'log';
 const workoutForm = document.getElementById('workoutForm');
 const exerciseList = document.getElementById('exerciseList');
 const addExerciseBtn = document.getElementById('addExerciseBtn');
@@ -16,6 +18,8 @@ const templateSelect = document.getElementById('templateSelect');
 const applyTemplateBtn = document.getElementById('applyTemplateBtn');
 const saveTemplateBtn = document.getElementById('saveTemplateBtn');
 const deleteTemplateBtn = document.getElementById('deleteTemplateBtn');
+const tabButtons = Array.from(document.querySelectorAll('[data-view-target]'));
+const viewSections = Array.from(document.querySelectorAll('[data-view]'));
 
 let workouts = loadWorkouts();
 let templates = loadTemplates();
@@ -36,9 +40,19 @@ function init() {
   renderTemplateOptions();
   setupEventListeners();
   maybeApplyDarkTheme();
+  restoreActiveView();
 }
 
 function setupEventListeners() {
+  if (tabButtons.length) {
+    tabButtons.forEach((button) => {
+      button.addEventListener('click', () => {
+        switchView(button.dataset.viewTarget);
+      });
+      button.addEventListener('keydown', handleTabKeydown);
+    });
+  }
+
   addExerciseBtn.addEventListener('click', () => {
     const row = addExerciseRow();
     const input = row.querySelector('input[name="exercise"]');
@@ -699,6 +713,7 @@ function repeatWorkout(id) {
     return;
   }
 
+  switchView('log');
   editingWorkoutId = null;
   workoutForm.querySelector('.primary').textContent = 'Save workout';
   workoutForm.elements.focus.value = workout.focus || '';
@@ -774,6 +789,7 @@ function startEditing(id) {
   const workout = workouts.find((item) => item.id === id);
   if (!workout) return;
 
+  switchView('log');
   editingWorkoutId = workout.id;
   workoutForm.querySelector('.primary').textContent = 'Update workout';
   workoutForm.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -1024,6 +1040,86 @@ function maybeApplyDarkTheme() {
   }
 }
 
+function restoreActiveView() {
+  if (!viewSections.length) {
+    return;
+  }
+
+  const availableViews = viewSections
+    .map((section) => section.dataset.view)
+    .filter(Boolean);
+  const storedView = getStoredView();
+  const initialView = availableViews.includes(storedView)
+    ? storedView
+    : availableViews.includes(defaultView)
+    ? defaultView
+    : availableViews[0];
+
+  if (initialView) {
+    switchView(initialView);
+  }
+}
+
+function getStoredView() {
+  try {
+    return localStorage.getItem(viewStorageKey) || '';
+  } catch (error) {
+    console.debug('Unable to read stored view', error);
+    return '';
+  }
+}
+
+function switchView(viewName) {
+  if (!viewName || !viewSections.length) {
+    return;
+  }
+
+  const targetSection = viewSections.find((section) => section.dataset.view === viewName);
+  const targetButton = tabButtons.find((button) => button.dataset.viewTarget === viewName);
+
+  if (!targetSection || !targetButton) {
+    return;
+  }
+
+  viewSections.forEach((section) => {
+    const isActive = section === targetSection;
+    section.classList.toggle('is-active', isActive);
+    section.toggleAttribute('hidden', !isActive);
+  });
+
+  tabButtons.forEach((button) => {
+    const isActive = button === targetButton;
+    button.setAttribute('aria-selected', String(isActive));
+    button.tabIndex = isActive ? 0 : -1;
+    button.classList.toggle('active', isActive);
+  });
+
+  try {
+    localStorage.setItem(viewStorageKey, viewName);
+  } catch (error) {
+    console.debug('Unable to store active view', error);
+  }
+}
+
+function handleTabKeydown(event) {
+  if (event.key !== 'ArrowRight' && event.key !== 'ArrowLeft') {
+    return;
+  }
+
+  event.preventDefault();
+  const currentIndex = tabButtons.indexOf(event.currentTarget);
+  if (currentIndex === -1) {
+    return;
+  }
+
+  const direction = event.key === 'ArrowRight' ? 1 : -1;
+  const nextIndex = (currentIndex + direction + tabButtons.length) % tabButtons.length;
+  const nextButton = tabButtons[nextIndex];
+  if (nextButton) {
+    nextButton.focus();
+    switchView(nextButton.dataset.viewTarget);
+  }
+}
 function generateId() {
   if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
     return crypto.randomUUID();

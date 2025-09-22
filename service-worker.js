@@ -1,4 +1,4 @@
-const CACHE_NAME = 'wtpwa-cache-v4';
+const CACHE_NAME = 'wtpwa-cache-v5';
 const ASSETS = [
   './',
   './index.html',

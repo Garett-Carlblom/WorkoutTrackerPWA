@@ -25,7 +25,7 @@ body {
   background: radial-gradient(circle at top, rgba(15, 76, 129, 0.12), transparent 45%), var(--bg);
   color: #0a1a2a;
   min-height: 100vh;
-  padding-bottom: 72px;
+  padding-bottom: calc(96px + env(safe-area-inset-bottom));
 }
 
 body.dark-theme {
@@ -36,9 +36,101 @@ body.dark-theme {
 main {
   max-width: 860px;
   margin: 0 auto;
-  padding: 1.5rem 1.25rem 4rem;
+  padding: 1.5rem 1.25rem 6.5rem;
   display: grid;
   gap: 1.5rem;
+}
+
+.view {
+  scroll-margin-top: 96px;
+}
+
+.view[hidden] {
+  display: none !important;
+}
+
+.tab-bar {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.5rem;
+  padding: 0.35rem calc(1.25rem + env(safe-area-inset-right))
+    calc(0.75rem + env(safe-area-inset-bottom)) calc(1.25rem + env(safe-area-inset-left));
+  background: rgba(255, 255, 255, 0.92);
+  backdrop-filter: blur(18px);
+  border-top: 1px solid var(--border);
+  box-shadow: 0 -8px 24px rgba(10, 26, 42, 0.08);
+  z-index: 15;
+}
+
+body.dark-theme .tab-bar {
+  background: rgba(4, 11, 18, 0.85);
+  border-top-color: rgba(40, 161, 255, 0.16);
+  box-shadow: 0 -8px 24px rgba(4, 11, 18, 0.45);
+}
+
+.tab-button {
+  display: grid;
+  place-items: center;
+  gap: 0.25rem;
+  padding: 0.5rem 0.75rem;
+  border: none;
+  border-radius: var(--radius);
+  background: transparent;
+  color: var(--muted);
+  font-weight: 600;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+  transition: color var(--transition), transform var(--transition), background var(--transition);
+}
+
+.tab-button:focus-visible {
+  outline: 3px solid rgba(40, 161, 255, 0.55);
+  outline-offset: 2px;
+}
+
+.tab-button:hover {
+  background: rgba(40, 161, 255, 0.08);
+}
+
+.tab-button.active {
+  color: var(--primary);
+  transform: translateY(-1px);
+}
+
+body.dark-theme .tab-button {
+  color: rgba(236, 243, 255, 0.75);
+}
+
+body.dark-theme .tab-button:hover {
+  background: rgba(40, 161, 255, 0.15);
+}
+
+body.dark-theme .tab-button.active {
+  color: #ffffff;
+}
+
+.tab-button .tab-icon {
+  font-size: 1.25rem;
+}
+
+.tab-button .tab-label {
+  font-size: 0.7rem;
+}
+
+@media (min-width: 720px) {
+  .tab-button {
+    font-size: 0.8rem;
+  }
+
+  .tab-button .tab-label {
+    font-size: 0.75rem;
+  }
 }
 
 h1, h2, h3 {

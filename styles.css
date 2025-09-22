@@ -174,6 +174,30 @@ body.dark-theme .card {
   color: var(--muted);
 }
 
+.history-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.85rem;
+  margin-bottom: 1rem;
+}
+
+.history-controls label {
+  display: grid;
+  gap: 0.25rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.history-controls select {
+  min-width: 160px;
+}
+
+.history-summary {
+  margin: -0.25rem 0 1rem;
+  font-size: 0.85rem;
+}
+
 .form-group {
   display: grid;
   gap: 0.35rem;
@@ -188,12 +212,14 @@ label {
 
 input,
 textarea,
+select,
 button {
   font: inherit;
 }
 
 input,
-textarea {
+textarea,
+select {
   padding: 0.75rem 0.85rem;
   border-radius: var(--radius-sm);
   border: 1px solid var(--border);
@@ -202,14 +228,16 @@ textarea {
 }
 
 body.dark-theme input,
-body.dark-theme textarea {
+body.dark-theme textarea,
+body.dark-theme select {
   background: rgba(11, 23, 39, 0.95);
   color: inherit;
   border-color: rgba(255, 255, 255, 0.08);
 }
 
 input:focus,
-textarea:focus {
+textarea:focus,
+select:focus {
   outline: none;
   border-color: var(--primary);
   box-shadow: 0 0 0 3px rgba(40, 161, 255, 0.25);
@@ -239,17 +267,61 @@ body.dark-theme .exercise-row {
   margin-bottom: 0.75rem;
 }
 
-.exercise-inputs {
+.template-controls {
+  margin-bottom: 0.5rem;
+}
+
+.template-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.template-actions select {
+  min-width: 180px;
+}
+
+.set-list {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 0.75rem;
 }
 
-.exercise-inputs label {
-  font-weight: 600;
-  font-size: 0.9rem;
+.set-row {
+  display: grid;
+  grid-template-columns: auto repeat(2, minmax(0, 1fr)) auto;
+  gap: 0.75rem;
+  align-items: center;
+  padding: 0.75rem;
+  border-radius: var(--radius-sm);
+  background: rgba(15, 76, 129, 0.06);
+}
+
+body.dark-theme .set-row {
+  background: rgba(40, 68, 104, 0.35);
+}
+
+.set-row label {
   display: grid;
   gap: 0.35rem;
+  font-size: 0.9rem;
+}
+
+.set-label {
+  font-weight: 700;
+  color: #0f4c81;
+  min-width: 48px;
+}
+
+body.dark-theme .set-label {
+  color: #8cc8ff;
+}
+
+.set-row .icon-button {
+  margin-left: auto;
+}
+
+.exercise-row .add-set {
+  justify-self: flex-start;
 }
 
 .weight-input {
@@ -308,6 +380,24 @@ button.ghost {
   background: transparent;
   border: 1px solid rgba(15, 76, 129, 0.2);
   color: inherit;
+}
+
+button.ghost.danger {
+  color: #b91c1c;
+  border-color: rgba(185, 28, 28, 0.4);
+}
+
+button.ghost.danger:hover {
+  background: rgba(185, 28, 28, 0.08);
+}
+
+body.dark-theme button.ghost.danger {
+  color: #ffb4b4;
+  border-color: rgba(255, 180, 180, 0.3);
+}
+
+body.dark-theme button.ghost.danger:hover {
+  background: rgba(255, 180, 180, 0.12);
 }
 
 button.ghost:hover {
@@ -388,13 +478,47 @@ body.dark-theme .history-card {
   font-weight: 600;
 }
 
-.history-card ul {
-  padding-left: 1.2rem;
+.history-card ul.exercise-summary {
+  list-style: none;
   margin: 0.75rem 0 0;
+  padding: 0;
+  display: grid;
+  gap: 0.85rem;
 }
 
-.history-card li {
-  margin-bottom: 0.4rem;
+.history-card ul.exercise-summary > li {
+  margin: 0;
+}
+
+.set-detail-list {
+  margin-top: 0.4rem;
+  display: grid;
+  gap: 0.35rem;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.set-detail {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.5rem;
+  align-items: baseline;
+  font-variant-numeric: tabular-nums;
+}
+
+.set-detail-label {
+  font-weight: 600;
+}
+
+.set-detail-value {
+  text-align: right;
+}
+
+.set-total {
+  font-weight: 600;
+  color: inherit;
+  margin-top: 0.35rem;
+  text-align: right;
 }
 
 .history-card details {
@@ -405,6 +529,7 @@ body.dark-theme .history-card {
   display: flex;
   gap: 0.75rem;
   margin-top: 1rem;
+  flex-wrap: wrap;
 }
 
 button.small {
@@ -414,7 +539,7 @@ button.small {
 
 .history-actions .secondary,
 .history-actions .ghost {
-  flex: 1;
+  flex: 1 1 140px;
   text-align: center;
 }
 
@@ -453,8 +578,26 @@ button.small {
     padding: 1rem;
   }
 
-  .exercise-inputs {
+  .template-actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .template-actions select {
+    width: 100%;
+  }
+
+  .set-row {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-items: stretch;
+  }
+
+  .set-label {
+    grid-column: 1 / -1;
+  }
+
+  .set-row .icon-button {
+    justify-self: end;
   }
 }
 

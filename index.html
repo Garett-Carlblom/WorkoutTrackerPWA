@@ -36,7 +36,7 @@
     <section class="card" aria-labelledby="workout-form-heading">
       <div class="card-header">
         <h2 id="workout-form-heading">Log a workout</h2>
-        <p>Capture exercises, sets, reps, and weight to track your progress over time.</p>
+        <p>Track every set inline and reuse templates to speed up future sessions.</p>
       </div>
       <form id="workoutForm" novalidate>
         <div class="form-group">
@@ -46,6 +46,17 @@
         <div class="form-group">
           <label for="workoutFocus">Focus</label>
           <input type="text" id="workoutFocus" name="focus" placeholder="Push day, legs, full body..." maxlength="40" />
+        </div>
+        <div class="form-group template-controls">
+          <label for="templateSelect">Template</label>
+          <div class="template-actions">
+            <select id="templateSelect" name="template">
+              <option value="">Choose a template...</option>
+            </select>
+            <button type="button" class="secondary small" id="applyTemplateBtn">Apply</button>
+            <button type="button" class="ghost small" id="saveTemplateBtn">Save as template</button>
+            <button type="button" class="ghost small" id="deleteTemplateBtn">Delete</button>
+          </div>
         </div>
         <div class="exercise-list" id="exerciseList" aria-live="polite">
           <!-- Exercise rows inserted by script -->
@@ -65,8 +76,25 @@
     <section class="card" aria-labelledby="history-heading">
       <div class="card-header">
         <h2 id="history-heading">Workout history</h2>
-        <p class="muted">Tap a workout to see details. Everything is stored on your device.</p>
+        <p class="muted">Tap a workout to see details, repeat a session, or turn it into a template.</p>
       </div>
+      <div class="history-controls" role="group" aria-label="History filters">
+        <label>
+          <span>Time range</span>
+          <select id="historyRange" name="historyRange">
+            <option value="all">All time</option>
+            <option value="week">Last 7 days</option>
+            <option value="month">Last 30 days</option>
+          </select>
+        </label>
+        <label>
+          <span>Focus</span>
+          <select id="historyFocus" name="historyFocus">
+            <option value="all">All focuses</option>
+          </select>
+        </label>
+      </div>
+      <p id="historySummary" class="muted history-summary" aria-live="polite"></p>
       <div id="history" class="history" aria-live="polite">
         <!-- Workout cards inserted by script -->
       </div>
@@ -83,23 +111,28 @@
         <label>Exercise name</label>
         <input type="text" name="exercise" placeholder="Bench press" maxlength="40" required />
       </div>
-      <div class="exercise-inputs">
-        <label>
-          <span>Sets</span>
-          <input type="number" name="sets" min="1" max="20" inputmode="numeric" required />
-        </label>
-        <label>
-          <span>Reps</span>
-          <input type="number" name="reps" min="1" max="50" inputmode="numeric" required />
-        </label>
-        <label>
-          <span>Weight</span>
-          <div class="weight-input">
-            <input type="number" name="weight" min="0" step="0.5" inputmode="decimal" placeholder="0" />
-            <span class="unit" aria-hidden="true">kg</span>
-          </div>
-        </label>
+      <div class="set-list" role="list">
+        <!-- Set rows inserted by script -->
       </div>
+      <button type="button" class="ghost small add-set">Add set</button>
+    </div>
+  </template>
+
+  <template id="setRowTemplate">
+    <div class="set-row" role="listitem">
+      <span class="set-label">Set</span>
+      <label>
+        <span>Reps</span>
+        <input type="number" name="reps" min="1" max="50" inputmode="numeric" required />
+      </label>
+      <label>
+        <span>Weight</span>
+        <div class="weight-input">
+          <input type="number" name="weight" min="0" step="0.5" inputmode="decimal" placeholder="0" />
+          <span class="unit" aria-hidden="true">kg</span>
+        </div>
+      </label>
+      <button type="button" class="icon-button remove-set" aria-label="Remove set">✕</button>
     </div>
   </template>
 

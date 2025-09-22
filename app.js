@@ -1120,7 +1120,6 @@ function handleTabKeydown(event) {
     switchView(nextButton.dataset.viewTarget);
   }
 }
-
 function generateId() {
   if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
     return crypto.randomUUID();

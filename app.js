@@ -977,7 +977,15 @@ function normalizeExercise(exercise) {
     return null;
   }
 
-  const name = typeof exercise.exercise === 'string' ? exercise.exercise : '';
+  const nameSource =
+    typeof exercise.exercise === 'string'
+      ? exercise.exercise
+      : typeof exercise.name === 'string'
+      ? exercise.name
+      : typeof exercise.title === 'string'
+      ? exercise.title
+      : '';
+  const name = nameSource.trim();
 
   if (Array.isArray(exercise.sets)) {
     const sets = exercise.sets
